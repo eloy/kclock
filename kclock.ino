@@ -16,10 +16,11 @@
 // #include "Adafruit_GFX.h"
 #include "TouchScreen.h"
 #include "Adafruit_TFTLCD.h"
-#include "font.h"
+#include "TimerOne.h"
 #include "kclock.h"
-#include "view.h"
 #include "dgui.h"
+#include "view.h"
+
 
 #define YP A3  // must be an analog pin, use "An" notation!
 #define XM A2  // must be an analog pin, use "An" notation!
@@ -71,25 +72,22 @@ Adafruit_TFTLCD tft(LCD_CS, LCD_CD, LCD_WR, LCD_RD, LCD_RESET);
 #define WIDTH 240
 #define HEIGHT 320
 
-int x, y;
-Counter counter;
+// void drawXBitmap(int16_t x, int16_t y, int index, const uint8_t *bitmap, int16_t w, int16_t h, uint16_t color) {
+//   int16_t i, j;
+//   int byteWidth = (1 + 7) / 8;
+//   int offset = ((index * 20) + 7) / 8;
+//   byteWidth = 28;
 
-void drawXBitmap(int16_t x, int16_t y, int index, const uint8_t *bitmap, int16_t w, int16_t h, uint16_t color) {
-  int16_t i, j;
-  int byteWidth = (font_width + 7) / 8;
-  int offset = ((index * 20) + 7) / 8;
-  byteWidth = 28;
-
-  for(j=0; j < h; j++) {
-    for(i=0; i < w; i++ ) {
-      if(pgm_read_byte(bitmap + ((j * byteWidth) + (i / 8)) + offset) & (1 << (i % 8))) {
-        tft.drawPixel(x+i, y+j, color);
-      } else {
-        tft.drawPixel(x+i, y+j, BLACK);
-      }
-    }
-  }
-}
+//   for(j=0; j < h; j++) {
+//     for(i=0; i < w; i++ ) {
+//       if(pgm_read_byte(bitmap + ((j * byteWidth) + (i / 8)) + offset) & (1 << (i % 8))) {
+//         tft.drawPixel(x+i, y+j, color);
+//       } else {
+//         tft.drawPixel(x+i, y+j, BLACK);
+//       }
+//     }
+//   }
+// }
 
 
 
@@ -116,16 +114,77 @@ void calibrate() {
   PRINT("calibration: X [%i, %i] , Y [%i, %i]\n", cal_max_x, cal_min_x, cal_max_y, cal_min_y);
 }
 
-dgui::View main_view("main_view");
+class CountersContainerView : public dgui::View {
+public:
+  CountersContainerView(const char* id, int x, int y, int w, int h) : dgui::View(id, x, y, w, h) {}
+  void add(Component *child) {
+    dgui::Component::add(child);
+
+    int size = this->childs.size();
+
+    int height = 4;
+    if (size == 2) height = 2;
+    if (size > 2) height = 1;
+
+    int i = 0;
+    for (SimpleList<Component *>::iterator itr = this->childs.begin(); itr != this->childs.end(); ++itr) {
+      Component *component = (Component *)*itr;
+      component->set_y(height * i++);
+      component->debug();
+    }
+    this->clear(&tft);
+  }
+};
+
+class CounterView : public dgui::View {
+public:
+  CounterView(Counter *counter) : dgui::View("*CounterView"), text_comp("text") {
+    this->counter = counter;
+    this->set_width(6);
+    this->add(&this->text_comp);
+  }
+
+  bool should_update() {
+    unsigned long seconds = this->counter->seconds();
+    if (current_time == seconds) return false;
+    PRINT("Update required");
+    current_time = seconds;
+    return true;
+  }
+
+  void render(Display * display) {
+    this->counter->print(&this->time_str[0]);
+    this->text_comp.set_text(&this->time_str[0]);
+    dgui::View::render(display);
+  }
+
+
+private:
+  Counter *counter;
+  unsigned long current_time;
+  char time_str[TIME_STR_LEN];
+  dgui::Text text_comp;
+};
+
+
+dgui::View *main_view;
+CountersContainerView *counters_view;
 
 
 void on_click(dgui::Component *component) {
-  PRINT("Selected component: %s\n", component->id());
+  PRINT("Click on %s\n", component->id());
+  component->debug();
+  if (strcmp("add", component->id()) == 0) {
+    Counter *counter = new Counter();
+    CounterView *view = new CounterView(counter);
+    add_counter(counter);
+    counters_view->add(view);
+    PRINT("counter added");
+  }
 }
 
 
 dgui::Component * current_target = NULL;
-int min_z = 800;
 void retrieveTouch() {
   int height = tft.height();
   int width = tft.width();
@@ -140,7 +199,7 @@ void retrieveTouch() {
 
 
 
-  if (p.z < 10) {
+  if (p.z < 40) {
     if (current_target) {
       current_target = NULL;
       // PRINT("RESET TARGET: %i", p.z);
@@ -148,22 +207,15 @@ void retrieveTouch() {
     return;
   }
 
-  // min_z = min(min_z, p.z);
-  // PRINT("Reading pressure: %i [min: %i]", p.z, min_z);
 
-  int X, Y;
 
-  X = width - map(p.y, TS_MAXY, TS_MINY, 0, width);
-  Y = height - map(p.x, TS_MAXX, TS_MINX, 0, height);
-  // PRINT("Converted: %i, %i, %i\n", X, Y, p.z);
+  int X = width - map(p.y, TS_MAXY, TS_MINY, 0, width);
+  int Y = height - map(p.x, TS_MAXX, TS_MINX, 0, height);
 
-  dgui::Component *target = main_view.find_click_target(X, Y);
+  dgui::Component *target = main_view->find_click_target(X, Y);
 
   if (target == current_target) return;
-
-
   if (target != NULL) on_click(target);
-
   current_target = target;
 }
 
@@ -179,42 +231,30 @@ void setup() {
   Serial.print("Width: "); Serial.println(tft.width());
   Serial.print("Height: "); Serial.println(tft.height());
   tft.fillScreen(BLACK);
-  x = 0;
-  y = 0;
 
   setup_counters();
-  add_counter(&counter);
-  // drawXBitmap(0, 0, 0, &font_bits[0], 20, 25, RED);
 
 
+  main_view = new dgui::View("main_view");
+  counters_view = new CountersContainerView("counters", 0, 0, 6, 4);
+  main_view->add(counters_view);
   dgui::Button *btn = new dgui::Button("add", 6, 0, 2, 2);
   btn->background_color = RED;
-  main_view.add(btn);
-
-  btn->render(&tft, 0, 0);
-
-  // draw_main_layout(&tft);
+  main_view->add(btn);
+  main_view->debug();
+  main_view->render(&tft);
 }
 
 int n = 0;
 
 
-char buffer[2][TIME_STR_LEN];
-int page = 0;
+
+int page = 0, next_page = 0;
 
 void loop() {
 
-  counter.print(&buffer[page][0]);
-
-  if (strcmp(&buffer[0][0], &buffer[1][0]) != 0) {
-    tft.fillRect(0, 0, 50, 10, BLACK);
-    tft.setCursor(0, 0);
-    tft.println(&buffer[page][0]);
-    page = page == 0 ? 1 : 0;
-  }
-
   // calibrate();
   retrieveTouch();
-
+  main_view->render(&tft);
   // delay(200);
 }

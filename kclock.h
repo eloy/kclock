@@ -42,10 +42,13 @@ class Counter {
     snprintf(buffer, TIME_STR_LEN, "%02i:%02i:%02i", hours, minutes, seconds);
   }
 
- private:
+  unsigned long seconds() {
+    return this->duration / 1000;
+  }
+
+private:
   unsigned long duration;
 };
-
 
 void setup_counters();
 void add_counter(Counter *counter);
