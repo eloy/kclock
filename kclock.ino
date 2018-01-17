@@ -111,16 +111,16 @@ public:
 
 class CounterView : public dgui::View {
 public:
-  CounterView(Counter *counter) : dgui::View("*CounterView"), text_comp("text", 0, 1 ,0 ,0),  pause_btn("pause_btn", 8, 0, 2, 2) {
+  CounterView(Counter *counter) : dgui::View("*CounterView"), left_btn("right_btn", 0, 0, 2, 2), text_comp("text", 3, 1 ,0 ,0) , right_btn("right_btn", 8, 0, 2, 2) {
     this->counter = counter;
     this->set_width(6);
     this->add(&this->text_comp);
-    this->add(&this->pause_btn);
+    this->add(&this->left_btn);
+    this->add(&this->right_btn);
 
-
-    // pause_btn->bitmap = &clock[0];
-    this->pause_btn.background_color = RED;
-
+    // this->right_btn.bitmap = &clock[0];
+    this->left_btn.background_color = GREEN;
+    this->right_btn.background_color = RED;
 
   }
 
@@ -144,8 +144,8 @@ private:
   unsigned long current_time;
   char time_str[TIME_STR_LEN];
   dgui::Text text_comp;
-  dgui::Button pause_btn;
-
+  dgui::Button left_btn;
+  dgui::Button right_btn;
 };
 
 

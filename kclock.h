@@ -7,10 +7,11 @@
 #include <Arduino.h>
 #define MAX_COUNTERS 4
 
-extern char DEBUG[512];
 
-#define SERIAL_LOG
+
+//#define SERIAL_LOG
 #ifdef SERIAL_LOG
+extern char DEBUG[512];
 #define PRINT(...) snprintf(&DEBUG[0], 512, __VA_ARGS__); Serial.println(&DEBUG[0]);
 
 #else
