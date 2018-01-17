@@ -8,7 +8,9 @@ void add_counter(Counter *counter) {
   counters.push_back(counter);
 }
 
-
+unsigned int counters_count() {
+  return counters.size();
+}
 
 void send_tick() {
   for (SimpleList<Counter *>::iterator itr = counters.begin(); itr != counters.end(); ++itr) {

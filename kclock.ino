@@ -21,6 +21,7 @@
 #include "dgui.h"
 #include "view.h"
 
+#include "icons.h"
 
 #define YP A3  // must be an analog pin, use "An" notation!
 #define XM A2  // must be an analog pin, use "An" notation!
@@ -29,8 +30,6 @@
 
 // calibration mins and max for raw data when touching edges of screen
 // YOU CAN USE THIS SKETCH TO DETERMINE THE RAW X AND Y OF THE EDGES TO GET YOUR HIGHS AND LOWS FOR X AND Y
-//calibration: X [863, 156] , Y [914, 113]
-// calibration: X [897, 123] , Y [918, 91]
 #define TS_MAXX 897
 #define TS_MINX 123
 
@@ -38,12 +37,6 @@
 #define TS_MINY 91
 char DEBUG[512];
 
-
-// #define TS_MAXX 914
-// #define TS_MINX 113
-
-// #define TS_MAXY 863
-// #define TS_MINY 156
 
 
 //SPI Communication
@@ -71,23 +64,6 @@ Adafruit_TFTLCD tft(LCD_CS, LCD_CD, LCD_WR, LCD_RD, LCD_RESET);
 
 #define WIDTH 240
 #define HEIGHT 320
-
-// void drawXBitmap(int16_t x, int16_t y, int index, const uint8_t *bitmap, int16_t w, int16_t h, uint16_t color) {
-//   int16_t i, j;
-//   int byteWidth = (1 + 7) / 8;
-//   int offset = ((index * 20) + 7) / 8;
-//   byteWidth = 28;
-
-//   for(j=0; j < h; j++) {
-//     for(i=0; i < w; i++ ) {
-//       if(pgm_read_byte(bitmap + ((j * byteWidth) + (i / 8)) + offset) & (1 << (i % 8))) {
-//         tft.drawPixel(x+i, y+j, color);
-//       } else {
-//         tft.drawPixel(x+i, y+j, BLACK);
-//       }
-//     }
-//   }
-// }
 
 
 
@@ -123,14 +99,11 @@ public:
     int size = this->childs.size();
 
     int height = 4;
-    if (size == 2) height = 2;
-    if (size > 2) height = 1;
 
     int i = 0;
     for (SimpleList<Component *>::iterator itr = this->childs.begin(); itr != this->childs.end(); ++itr) {
       Component *component = (Component *)*itr;
       component->set_y(height * i++);
-      component->debug();
     }
     this->clear(&tft);
   }
@@ -138,16 +111,23 @@ public:
 
 class CounterView : public dgui::View {
 public:
-  CounterView(Counter *counter) : dgui::View("*CounterView"), text_comp("text") {
+  CounterView(Counter *counter) : dgui::View("*CounterView"), text_comp("text", 0, 1 ,0 ,0),  pause_btn("pause_btn", 8, 0, 2, 2) {
     this->counter = counter;
     this->set_width(6);
     this->add(&this->text_comp);
+    this->add(&this->pause_btn);
+
+
+    // pause_btn->bitmap = &clock[0];
+    this->pause_btn.background_color = RED;
+
+
   }
 
   bool should_update() {
     unsigned long seconds = this->counter->seconds();
     if (current_time == seconds) return false;
-    PRINT("Update required");
+    // PRINT("Update required");
     current_time = seconds;
     return true;
   }
@@ -164,6 +144,8 @@ private:
   unsigned long current_time;
   char time_str[TIME_STR_LEN];
   dgui::Text text_comp;
+  dgui::Button pause_btn;
+
 };
 
 
@@ -173,8 +155,12 @@ CountersContainerView *counters_view;
 
 void on_click(dgui::Component *component) {
   PRINT("Click on %s\n", component->id());
-  component->debug();
-  if (strcmp("add", component->id()) == 0) {
+  // component->debug();
+  if (strcmp("add_counter", component->id()) == 0) {
+    if (counters_count() >= MAX_COUNTERS) {
+      return;
+    }
+
     Counter *counter = new Counter();
     CounterView *view = new CounterView(counter);
     add_counter(counter);
@@ -238,10 +224,20 @@ void setup() {
   main_view = new dgui::View("main_view");
   counters_view = new CountersContainerView("counters", 0, 0, 6, 4);
   main_view->add(counters_view);
-  dgui::Button *btn = new dgui::Button("add", 6, 0, 2, 2);
-  btn->background_color = RED;
-  main_view->add(btn);
-  main_view->debug();
+
+  dgui::Button *add_counter = new dgui::Button("add_counter", 6, 0, 2, 2);
+  add_counter->bitmap = &clock[0];
+  add_counter->background_color = RED;
+  main_view->add(add_counter);
+
+
+  dgui::Button *add_timer = new dgui::Button("add_timer", 6, 6, 2, 2);
+  add_timer->bitmap = &reloj_arena[0];
+  add_timer->background_color = BLUE;
+  main_view->add(add_timer);
+
+
+  // main_view->debug();
   main_view->render(&tft);
 }
 
